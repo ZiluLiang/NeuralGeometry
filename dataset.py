@@ -87,7 +87,7 @@ class Neuron():
     return fig
 
 class Ensemble():
-  # assuming that neurons in an ensemble fires individually, no inhibition/recurrence
+  # assuming that neurons in an ensemble fires individually, no inhibition/recurrence, no correlated noise
   def __init__(self,NeuronClasses,NeuronParams) -> None:
     self.neurons = [NC(**params) for NC,params in zip(NeuronClasses,NeuronParams)]
     self.n_neuron = len(self.neurons)
