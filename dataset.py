@@ -37,8 +37,8 @@ class TreeStimuli(StimuliSet):
   """
   def __init__(self,leafiness=None,branchiness=None) -> None:
     super().__init__()
-    leafiness   = numpy.linspace(0.2,1.4,20,False) if leafiness is None else leafiness
-    branchiness = [0.02,1] if branchiness is None else branchiness
+    leafiness   = [0.2,1] if leafiness is None else leafiness
+    branchiness = numpy.linspace(0.2,1,20,False) if branchiness is None else branchiness
     
     self.features     = [leafiness,branchiness]#
     self.featurenames = ["leafiness","branchiness"]
@@ -54,10 +54,12 @@ class Neuron():
       variance of gaussian noise, by default 1
   """
   def __init__(self,noise_mu:int=0,noise_sig:int=1) -> None:
-    self.noise     = lambda n_samples: numpy.random.normal(noise_mu,noise_sig,size=(n_samples,1))
+    self.noise     = lambda n_samples,rng: rng.normal(noise_mu,noise_sig,size=(n_samples,1))
+    self.noise_mu = noise_mu
+    self.noise_sig = noise_sig
     self.firing_description = "base class neuron with no firing function"
   
-  def fire(self,stimuli:numpy.ndarray) -> numpy.ndarray:
+  def fire(self,stimuli:numpy.ndarray,random_state=None) -> numpy.ndarray:
     """output neuronal response for different stimuli
 
     Parameters
@@ -70,7 +72,11 @@ class Neuron():
     numpy.ndarray
         a 2D numpy array of shape (n_sampe,1), where n_sample = stimuli.shape[0]
     """
-    return self.activate(stimuli)+self.noise(stimuli.shape[0])
+    if  random_state is None:
+      rng = numpy.random.default_rng(42)
+    else:
+      rng = numpy.random.default_rng(random_state)
+    return self.activate(stimuli)+self.noise(stimuli.shape[0],rng)
   
   def __str__(self):
     print(f'{self.__class__.__name__}:\n {self.firing_description}')
@@ -94,6 +100,28 @@ class Ensemble():
 
   def fire(self,stimuli):
     return numpy.concatenate([n.fire(stimuli) for n in self.neurons],axis=1)
+  
+class NoisyEnsemble():
+  # assuming that neurons in an ensemble fires individually with correlated noise
+  def __init__(self,NeuronClasses,NeuronParams,corr = 0) -> None:
+    self.neurons = [NC(**params) for NC,params in zip(NeuronClasses,NeuronParams)]
+    self.n_neuron = len(self.neurons)
+    
+    #correlated noise generation
+    corr_mat = numpy.diag(numpy.ones(self.n_neuron))
+    corr_mat[numpy.tril_indices(self.n_neuron,-1)] = corr
+    corr_mat[numpy.triu_indices(self.n_neuron,1)] = corr
+    stdev = numpy.array([[n.noise_sig for n in self.neurons]])
+    self.noise_cov = stdev * stdev.T * corr_mat
+    self.noise = lambda n_samples,rng: scipy.stats.multivariate_normal(numpy.zeros(self.n_neuron), self.noise_cov).rvs(size=n_samples,random_state=rng)
+  
+  def fire(self,stimuli,random_state=None):
+    if  random_state is None:
+      rng = numpy.random.default_rng(42)
+    else:
+      rng = numpy.random.default_rng(random_state)
+    rng = numpy.random.default_rng(21)
+    return numpy.concatenate([n.fire(stimuli) for n in self.neurons],axis=1)+self.noise(stimuli.shape[0],rng)
   
 
 class LinearNeuron(Neuron):
@@ -144,8 +172,8 @@ class MultivariateGaussianNeuron(Neuron):
 
   Parameters
   ----------
-  mus : 2D numpy array
-      mean of multivariate gaussian distrubution
+  mus : array_like
+      mean of multivariate gaussian distrubution of shape (n_feature,)
   cov: array_like or Covariance
       Symmetric positive (semi)definite covariance matrix of the distribution.
   noise_mu : int, optional
