@@ -120,7 +120,6 @@ class NoisyEnsemble():
       rng = numpy.random.default_rng(42)
     else:
       rng = numpy.random.default_rng(random_state)
-    rng = numpy.random.default_rng(21)
     return numpy.concatenate([n.fire(stimuli) for n in self.neurons],axis=1)+self.noise(stimuli.shape[0],rng)
   
 
@@ -183,7 +182,7 @@ class MultivariateGaussianNeuron(Neuron):
   """
   def __init__(self,mus:numpy.ndarray,cov=1,noise_mu:int=0,noise_sig:int=0.001) -> None:
     super().__init__(noise_mu,noise_sig)
-    self.activate = lambda stimuli: numpy.atleast_2d(scipy.stats.multivariate_normal(mus,cov).pdf(stimuli)).T
+    self.activate = lambda stimuli: 4*numpy.atleast_2d(scipy.stats.multivariate_normal(mus,cov).pdf(stimuli)).T
     self.firing_description = f"multivariate gaussian centered around {mus},\n covariance={cov} \n"
 
 class UnivariateGaussianNeuron(Neuron):
